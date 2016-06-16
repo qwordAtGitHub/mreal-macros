@@ -1,5 +1,5 @@
 ; MREAL macros, by qWord, 2014
-; Version 1.0.3
+; Version 1.0.4
 ; This file is best viewed with a fixed-width font and a tab size of 4.
 ;
 ; Overview
@@ -126,8 +126,8 @@
 ;     MR_SET_ZERO r             -> r = 0
 ;     MR_CREATE r               -> r = 0
 ;     MR_ROUND r,x,pwr2         -> r = round(x*2^(-pwr2))*2^pwr2
-;     MR_DECL_REAL10 lbl,x      -> declare and initialize REAL10 value in current segment.
-;                                  This is a bug fix for MASM v6-7.
+;     MR_DEF_REAL10 lbl,x       -> define REAL10 variable/constant in current segment, initialized with value x.
+;                                  This macro is a bug fix for MASM v6-7.
 ;     MR_CONVERT r,x,nx,nr      -> convert x to r. nx and nr specifies the number of precision WORDs.
 ;     MR_ABS r,x                -> r = |x|
 ;     MR_NEG r,x                -> r = -x
@@ -190,7 +190,7 @@
 ;     MR_TO_IEEE(<type>,x)    := Convert x to target precision and return a text macro that holds the corresponding hexadecimal floating point initializer.
 ;                                Type specifier can be: REAL4, REAL8, REAL10, single, double, double-extended,
 ;                                binary16, binary32, binary64.
-;                                Due to a bug in MASM v6-7 this macro cannot directly used to initialize REAL10 values - use MR_DECL_REAL10 instead.
+;                                Due to a bug in MASM v6-7 this macro cannot directly used to initialize REAL10 values - use MR_DEF_REAL10 instead.
 ;                                For more details see the macro declaration.
 ;     MR_TO_INT32(x,errVal)   := returns x rounded to an integer. If the rounded value is not in the range -2^31 to 2^31-1, then errVal is returned.
 ;                                If errVal is non-numeric, an error is thrown instead.
@@ -221,12 +221,14 @@
 ;     MR_TO_DECIMAL(x,N)      := returns a decimal literal that approximates the MREAL value x. This macro is mainly intended
 ;                                for debugging purpose -> Do not use this macro to initialize REAL4/8/10 values!
 ;                                The parameter N specifies the number of significant decimal digits (default=8).
-;     MR_TO_IEEE_HEX_SEQ(x,N) := returns IEEE754-2008 hexadecimal-significand character sequence for x using N hexadecimal mantissa digits.
+;     MR_TO_IEEE_HEX_SEQ(x,N) := returns IEEE754-2008 hexadecimal-significant character sequence for x using N hexadecimal mantissa digits.
 ;                                If N is zero, (=default value) all mantissa digits are used.
 ;     MR_EXPONENT(x)          := returns the equate that hold the binary exponent of MREAL value x.
+;     MR_ID_IS_MREAL(ID)      := returns TRUE if ID is an MREAL value
 ;
 ;     MR_GET_N_SIGNIFICANT_WORDS(x,n) := returns the number of significant mantissa WORDs. n is the number of mantissa WORDs.
 ;     MR_GET_N_SIGNIFICANT_BITS(x,n)  := returns the number of significant bits. n is the number of mantissa WORDs.
+;
 ;
 ; Global states
 ;
@@ -301,6 +303,12 @@
 ;  26.06.2014  Version 1.0.3
 ;              improvement:  - test for case-sensitive symbol recognition added (option casemap:none)
 ;              bugfix:       - MREAL-macro: did not work correct for integer literals greater than 32 bit (affects only ml64.exe and jWasm).
+;  25.09.2015  Version 1.0.4
+;              added:        - MR_ID_IS_MREAL macro
+;              improvement:  - include guard added
+;              bugfix:       - @ScanForFlt: wrong position were returned for integers. Also partial correct literals were discarded if parameter chr was blank.
+;                            - MR_SCALE: wrong input operand was used as exponent.
+;              change:       - MR_DECL_REAL10 macro has been renamed to MR_DEF_REAL10. To keep backward compatibility MR_DECL_REAL10 is an alias for MR_DEF_REAL10.
 ;
 ; Literature
 ;  [1]  J.-M. Muller, N. Brisebarre, F. de Dinechin, C.-P. Jeannerod, V. Lefevre, G. Melquiond, N. Revol, D. Stehle, S. Torres.
@@ -316,8 +324,9 @@
 ;
 
 
+IFNDEF MR_VERSION
 
-MR_VERSION EQU 103 ; 1.0.3
+MR_VERSION EQU 104 ; 1.0.4
 
 MREAL_XDIM 		= 4
 MREAL_WMSK 		EQU 0ffffh
@@ -396,6 +405,14 @@ MR_POP_STATE macro
 		state = @CatStr(<MRGSS_&state&>,%MR_GLB_STATE_STACK)
 	ENDM
 	MR_GLB_STATE_STACK = MR_GLB_STATE_STACK - 1
+endm
+
+;;/* returns TRUE, if ID is a MREAL value */
+MR_ID_IS_MREAL macro ID:req
+	IFNDEF MREAL_&ID&_flg
+		EXITM <0>
+	ENDIF
+	EXITM <-1>
 endm
 
 ;;/* create MREAL value and set it to zero (also all mantissa WORDs) */
@@ -1085,7 +1102,7 @@ MR_TO_INT32 macro x:req,indefiniteValue:=<80000000h>,rm:=<MREAL_ROUND_MODE>,n:=<
 	MR_ROUND mrtiTmp,x,0,,rm,n,1,32,-1
 	IF MREAL_mrtiTmp_flg AND MREAL_FLG_NON_NUMERIC_TEST
 		IF (OPATTR indefiniteValue) NE 24h
-			.err <rounded value exceeds int32 range>
+			.err <rounded value is out of int32 range>
 			EXITM <0>
 		ELSE
 			EXITM <&indefiniteValue>
@@ -1103,7 +1120,7 @@ MR_TO_INT32 macro x:req,indefiniteValue:=<80000000h>,rm:=<MREAL_ROUND_MODE>,n:=<
 	mrti_sign = (MREAL_mrtiTmp_flg AND MREAL_FLG_SIGN) NE 0
 	IF mrti_value GT 2147483647 AND (NOT mrti_sign) OR mrti_value GT 2147483648 AND mrti_sign
 		IF (OPATTR indefiniteValue) NE 24h
-			.err <rounded value exceeds int32 range>
+			.err <rounded value is out of int32 range>
 			EXITM <0>
 		ELSE
 			EXITM <&indefiniteValue>
@@ -1137,7 +1154,7 @@ MR_TO_UINT32 macro x:req,indefiniteValue:=<80000000h>,rm:=<MREAL_ROUND_MODE>,n:=
 	MR_ROUND mrtiTmp,x,0,,rm,n,1,32,-1
 	IF MREAL_mrtiTmp_flg AND MREAL_FLG_NON_NUMERIC_TEST
 		IF (OPATTR indefiniteValue) NE 24h
-			.err <rounded value exceeds uint32 range>
+			.err <rounded value is out of uint32 range>
 			EXITM <0>
 		ELSE
 			EXITM <&indefiniteValue>
@@ -1194,7 +1211,7 @@ MR_TO_INT64 macro x:req,indefiniteValue:=<8000000000000000h>,rm:=<MREAL_ROUND_MO
 	MR_ROUND mrtiTmp,x,0,,rm,n,1,64,-1
 	IF MREAL_mrtiTmp_flg AND MREAL_FLG_NON_NUMERIC_TEST
 		IF @ScanForFlt(1,<&indefiniteValue>) NE 2
-			.err <rounded value exceeds int64 range>
+			.err <rounded value is out of int64 range>
 			EXITM <0>
 		ELSE
 			EXITM <&indefiniteValue>
@@ -1218,7 +1235,7 @@ MR_TO_INT64 macro x:req,indefiniteValue:=<8000000000000000h>,rm:=<MREAL_ROUND_MO
 	IF mr_cmp GT 0
 		;;/* case: number out of range */
 		IF @ScanForFlt(1,<&indefiniteValue>) NE 2
-			.err <rounded value exceeds int64 range>
+			.err <rounded value is out of int64 range>
 			EXITM <0>
 		ELSE
 			EXITM <&indefiniteValue>
@@ -1271,7 +1288,7 @@ MR_TO_UINT64 macro x:req,indefiniteValue:=<8000000000000000h>,rm:=<MREAL_ROUND_M
 	MR_ROUND mrtiTmp,x,0,,rm,n,1,64,-1
 	IF MREAL_mrtiTmp_flg AND MREAL_FLG_NON_NUMERIC_TEST
 		IF @ScanForFlt(1,<&indefiniteValue>) NE 2
-			.err <rounded value exceeds uint64 range>
+			.err <rounded value is out of uint64 range>
 			EXITM <0>
 		ELSE
 			EXITM <&indefiniteValue>
@@ -1341,9 +1358,9 @@ MR_SCALE macro r:req,x:req,y:req,rm:=<MREAL_ROUND_MODE>,n:=<MREAL_XDIM>
 	
 	;;/* get exponent value */
 	IF MREAL_&y&_flg AND MREAL_FLG_SIGN
-		mrsb_pwr2 = MR_TO_INT32(x,80000000h,rm,n)
+		mrsb_pwr2 = MR_TO_INT32(y,80000000h,rm,n)
 	ELSE
-		mrsb_pwr2 = MR_TO_INT32(x,7fffffffh,rm,n)
+		mrsb_pwr2 = MR_TO_INT32(y,7fffffffh,rm,n)
 	ENDIF
 	MR_MOV r,x
 	;;/* scale */
@@ -3546,7 +3563,7 @@ mrti_glbl_cntr = 0
 ;; *          ------------------+-------------------+--------------------+-------------+-----------+------------+--------------+------------------+------- 
 ;; * 
 ;; *  Return: a text macro that holds the hexadecimal floating point initializer. For binary16 a WORD-sized integer constant is used.
-;; *          Due to a bug** in MASM v6-7 this macro cannot directly used to initialize REAL10 values (see MR_DECL_REAL10 macro).
+;; *          Due to a bug** in MASM v6-7 this macro cannot directly used to initialize REAL10 values (see MR_DEF_REAL10 macro).
 ;; *          
 ;; *          ** MASM reject hexadecimal initializers for REAL10 values that have a leading zero, even if the zero is required (e.g. -1.0 = 0Bfff8000000000000000r)
 ;; */
@@ -3696,15 +3713,15 @@ REAL10_TO_TBYTE macro r10HexInitializer:=<>
 endm
 
 ;;/**
-;; * This macro declares and initialize a REAL10 value in current segment.
+;; * This macro defines a REAL10 value in current segment.
 ;; */
-MR_DECL_REAL10 macro lbl,x:req,rm:=<MREAL_ROUND_MODE>,n:=<MREAL_XDIM>
+MR_DEF_REAL10 macro lbl,x:req,rm:=<MREAL_ROUND_MODE>,n:=<MREAL_XDIM>
 	IFNB <&lbl>
 		lbl LABEL REAL10
 	ENDIF
 	TBYTE REAL10_TO_TBYTE(MR_TO_IEEE(<REAL10>,x,rm,n))
 endm
-
+MR_DECL_REAL10 TEXTEQU <MR_DEF_REAL10>
 
 
 ;-----------------------------------------------------------------------------------------------------------;
@@ -3797,7 +3814,7 @@ endm
 ;   7       @ScanForFlt(1,<12()>,default)  --> 0                                                            ;
 ;   8       myChars TEXTEQU <   +-*/()>                                                                     ;
 ;           @ScanForFlt(1,<12()>,myChars)  --> 2 , sff_numstr=<12>      , sff_pos=3                         ;
-;                                                                                       by qWord, 2008-2014 ;
+;                                                                                       by qWord, 2008-2015 ;
 ;-----------------------------------------------------------------------------------------------------------;
 @ScanForFlt macro pos:req,txt:=<>,Chr
 
@@ -4032,9 +4049,35 @@ endm
 		ENDIF
 		sff_numstr TEXTEQU sff_hex_digits,sff_char
 	ELSEIF (sff_flag AND SFF_PRE_DECIMAL) NE 0 AND (sff_flag AND SFF_HEX_DIGITS) EQ 0
-		sff_pos = sff_last_decimal
+		sff_pos = sff_last_decimal + 1
 		sff_numstr CATSTR sff_sign,sff_pre_decimal
 		sff_type = 2
+	ELSEIFB <&Chr>
+		IF (sff_flag AND (SFF_PRE_DECIMAL OR SFF_DOT OR SFF_FRACT_DIGITS)) EQ (SFF_PRE_DECIMAL OR SFF_DOT OR SFF_FRACT_DIGITS)
+			sff_numstr TEXTEQU sff_pre_decimal,<.>,sff_fract_digits
+			IF sff_flag AND SFF_SIGN
+				sff_numstr TEXTEQU sff_sign,sff_numstr
+			ENDIF
+			sff_pos SIZESTR sff_numstr
+			sff_pos = sff_pos + sff_num_pos
+			sff_type = 1
+			sff_flag = sff_flag AND (SFF_SIGN OR SFF_PRE_DECIMAL OR SFF_DOT OR SFF_FRACT_DIGITS)
+		ELSEIF (sff_flag AND (SFF_PRE_DECIMAL OR SFF_DOT)) EQ (SFF_PRE_DECIMAL OR SFF_DOT)
+			sff_numstr TEXTEQU sff_pre_decimal,<.>
+			IF sff_flag AND SFF_SIGN
+				sff_numstr TEXTEQU sff_sign,sff_numstr
+			ENDIF
+			sff_pos SIZESTR sff_numstr
+			sff_pos = sff_pos + sff_num_pos
+			sff_type = 1
+			sff_flag = sff_flag AND (SFF_SIGN OR SFF_PRE_DECIMAL OR SFF_DOT )
+		ELSEIF (sff_flag AND SFF_PRE_DECIMAL) NE 0
+			sff_numstr SUBSTR sff_txt,sff_num_pos,sff_last_decimal-sff_num_pos+1
+			sff_pos = sff_last_decimal + 1
+			sff_type = 2
+		ELSE
+			EXITM <0>
+		ENDIF
 	ELSE
 		EXITM <0>
 	ENDIF
@@ -4580,7 +4623,7 @@ MR_FROM_STR macro dest:req,txt:req,rm:=<MREAL_ROUND_MODE>,n:=<MREAL_XDIM>
 	MREAL_INEXACT = 0
 	
 	IFE @ScanForFlt(1,txt,blanks)
-		;;/* if found, process IEEE754-2008 hexadecimal-significand character sequences */
+		;;/* if found, process IEEE754-2008 hexadecimal-significant character sequences */
 		_MR_FROM_IEEE754_08_HEX_SEQ_ dest,txt,rm,n
 		IFE mrfhs_done
 			.err <invalid input: &txt>
@@ -5140,7 +5183,7 @@ MR_TO_DECIMAL macro x:req,nDigits:=<8>,n:=<MREAL_XDIM>
 endm
 
 ;;/**
-;; * Create IEEE 754-2008 hexadecimal-significand character sequence.
+;; * Create IEEE 754-2008 hexadecimal-significant character sequence.
 ;; * nDigits determines the number of hexadecimal mantissa digits to use.
 ;; * If nDigits is zero, all manstissa digits are used, otherwise
 ;; * the value is rounded appropriate. Due to MASM's line length limit, 
@@ -5255,4 +5298,5 @@ MREAL macro expr:VARARG
 endm
 
 
+ENDIF ; IFNDEF MR_VERSION
 
