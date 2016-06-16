@@ -1,5 +1,5 @@
 ; MREAL macros, by qWord, 2014
-; Version 1.0.1
+; Version 1.0.2
 ; This file is best viewed with a fixed-width font and a tab size of 4.
 ;
 ; Overview
@@ -139,7 +139,7 @@
 ;                                             1  ->  x > y
 ;                                  This macro allows to compare infinite values.
 ;     MR_FROM_EXPR32 r,value    -> convert the numeric expression "value" (MASM expression, 32 bit) to MREAL r.
-;     MR_XMUL r,x,y,nr,nx,ny    -> r=x*y, multiplication with operands of different precision. Remarks that 1 < nr < nx+ny.
+;     MR_XMUL r,x,y,nr,nx,ny    -> r=x*y, multiplication with operands of different precision. Remarks that 1 <= nr <= nx+ny.
 ;     MR_SCALE r,x,y            -> r = x * 2^round(y)
 ;     MR_CSCALE r,x,pwr2        -> r = x * 2^pwr2
 ;     MR_FROM_STR r,literal     -> Convert numeric literal to MREAL value. The literal could be of the format:
@@ -180,12 +180,18 @@
 ;                                    n        : Number of mantissa WORDs.
 ;                                    mantissa : [VARARG] Mantissa WORDs. The values will be masked with 0ffffh, missing values are set to zero.
 ;                                  This macro does fill the equates MREAL_&name&_n and MREAL_&name&_nSig.
+;                                  Remarks that the macro assumes the values to be normalized to 2^1 = 1 (as for IEEE binary interchange formats).
+;
+;     MREAL x = literal1,
+;           y = literal2, ...   -> Initialize one or more MREAL values from numeric literals. To override the default precision, each assignment can contain
+;                                  a brace-expression that specifies the precision to use. For example, "MREAL x{8} = 0.123" initialize x with a precision of 8*16 bit.
 ;
 ;   Functions:
 ;     MR_TO_IEEE(<type>,x)    := Convert x to target precision and return a text macro that holds the corresponding hexadecimal floating point initializer.
 ;                                Type specifier can be: REAL4, REAL8, REAL10, single, double, double-extended,
 ;                                binary16, binary32, binary64.
 ;                                Due to a bug in MASM v6-7 this macro cannot directly used to initialize REAL10 values - use MR_DECL_REAL10 instead.
+;                                For more details see the macro declaration.
 ;     MR_TO_INT32(x,errVal)   := returns x rounded to an integer. If the rounded value is not in the range -2^31 to 2^31-1, then errVal is returned.
 ;                                If errVal is non-numeric, an error is thrown instead.
 ;     MR_TO_UINT32(x,errVal)  := returns x rounded to an unsigned integer. If the rounded value is not in the range 0 to 2^32-1, then errVal is returned.
@@ -290,6 +296,8 @@
 ; Changelog
 ;  27.05.2014  Version 1.0.1
 ;              bugfix:       - MR_TO_DECIMAL(): mrtiTmp was used, even if it was invalid.
+;  26.06.2014  Version 1.0.2
+;              added:        - MREAL macro.
 ;
 ;
 ; Literature
@@ -307,7 +315,7 @@
 
 
 
-MR_VERSION EQU 101 ; 1.0.1
+MR_VERSION EQU 102 ; 1.0.2
 
 MREAL_XDIM 		= 4
 MREAL_WMSK 		EQU 0ffffh
@@ -5195,6 +5203,53 @@ MR_TO_IEEE_HEX_SEQ macro x:req,nDigits:=<0>,rm:=<MREAL_ROUND_MODE>,n:=<MREAL_XDI
 	EXITM mtih_digits
 endm
 
+;;/**
+;; * Initialize one or more MREAL values from numeric literals
+;; * Syntax:
+;; *
+;; *    MREAL name1 = literal1, name2 = literal2, ...
+;; *
+;; * To override the default precision, each assignment can contain
+;; * a brace-expression that specifies the precision to use:
+;; *
+;; *    MREAL x{8} = 123.456E-7   ; 8*16=128 bit precision
+;; *
+;; * (The brace-expression could be placed anywhere in the assignment)
+;; * 
+;; * Example:
+;; *
+;; *    MREAL x = -123 , y = 0x123 , z = 0.005 , k = 0f00h
+;; */
+MREAL macro expr:VARARG
+	FOR txt,<&expr>
+		mreal_txt TEXTEQU < &txt >
+		mreal_pos1 INSTR mreal_txt,<{>
+		mreal_tn TEXTEQU <MREAL_XDIM>
+		IF mreal_pos1
+			mreal_pos2 INSTR mreal_txt,<}>
+			IF mreal_pos2 EQ 2 OR mreal_pos2 EQ mreal_pos1+1 OR mreal_pos2 LT mreal_pos1
+				.err <invalid use of braces {}>
+			ELSE
+				mreal_txt1 SUBSTR mreal_txt,1,mreal_pos1-1
+				mreal_tn SUBSTR mreal_txt,mreal_pos1+1,mreal_pos2-mreal_pos1-1
+				mreal_txt2 SUBSTR mreal_txt,mreal_pos2+1
+				mreal_txt TEXTEQU mreal_txt1,mreal_txt2
+			ENDIF
+		ENDIF
+		mreal_pos1 INSTR mreal_txt,<=>
+		IF mreal_pos1
+			mreal_txt1 SUBSTR mreal_txt,1,mreal_pos1-1
+			mreal_txt2 SUBSTR mreal_txt,mreal_pos1+1
+		%	IF (OPATTR &mreal_txt2) EQ 100100y
+		%		MR_FROM_EXPR32 &mreal_txt1,&mreal_txt2,,&mreal_tn
+			ELSE
+		%		MR_FROM_STR &mreal_txt1,&mreal_txt2,,&mreal_tn
+			ENDIF
+		ELSE
+			.err <invalid macro usage: expected: dest1 = value1, dest2 = value2, ...>
+		ENDIF
+	ENDM
+endm
 
 
 
