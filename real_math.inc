@@ -1,5 +1,5 @@
 ; MREAL macros, by qWord, 2014
-; Version 1.0.0
+; Version 1.0.1
 ; This file is best viewed with a fixed-width font and a tab size of 4.
 ;
 ; Overview
@@ -219,7 +219,7 @@
 ;                                If N is zero, (=default value) all mantissa digits are used.
 ;     MR_EXPONENT(x)          := returns the equate that hold the binary exponent of MREAL value x.
 ;
-;     MR_GET_N_SIGNIFICANT_WORDS(x,n) := returns the number of significant mantissa WORDs. n is the number of mantisa WORDs.
+;     MR_GET_N_SIGNIFICANT_WORDS(x,n) := returns the number of significant mantissa WORDs. n is the number of mantissa WORDs.
 ;     MR_GET_N_SIGNIFICANT_BITS(x,n)  := returns the number of significant bits. n is the number of mantissa WORDs.
 ;
 ; Global states
@@ -287,6 +287,11 @@
 ;        
 ;        The return vector {sign,e,nw,w} could be used to setup a call to MR_SET_CONST.
 ;
+; Changelog
+;  27.05.2014  Version 1.0.1
+;              bugfix:       - MR_TO_DECIMAL(): mrtiTmp was used, even if it was invalid.
+;
+;
 ; Literature
 ;  [1]  J.-M. Muller, N. Brisebarre, F. de Dinechin, C.-P. Jeannerod, V. Lefevre, G. Melquiond, N. Revol, D. Stehle, S. Torres.
 ;       Handbook of Floating-Point Arithmetic. Birkhäuser Boston, 2009.
@@ -302,7 +307,7 @@
 
 
 
-MR_VERSION EQU 100 ; 1.0.0
+MR_VERSION EQU 101 ; 1.0.1
 
 MREAL_XDIM 		= 4
 MREAL_WMSK 		EQU 0ffffh
@@ -5086,7 +5091,8 @@ MR_TO_DECIMAL macro x:req,nDigits:=<8>,n:=<MREAL_XDIM>
 	WHILE mrtd_cntr GE 8
 	%	MR_XMUL mrtd_k,mrtd_q,&mrtd_exp,mrtd_p,mrtd_p,MREAL_&mrtd_exp&_nSig,MRRM_ROUND_TO_EVEN
 		mrtd_val = MR_TO_UINT32(mrtd_k,,MRRM_TRUNCATE,mrtd_p)
-		IFE MREAL_mrtiTmp_flg AND MREAL_FLG_NO_MANTISSA_TEST
+		;;/* use the internal MREAL mrtiTmp of MR_TO_UINT32 if valid */
+		IF (MREAL_mrtiTmp_flg AND MREAL_FLG_NO_MANTISSA_TEST) EQ 0 AND mrtd_val NE 0
 			MR_SUB mrtd_q,mrtd_k,mrtiTmp,MRRM_ROUND_TO_EVEN,mrtd_p
 		ENDIF
 		mrtd_txt TEXTEQU %mrtd_val
