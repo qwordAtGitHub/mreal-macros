@@ -1,5 +1,5 @@
-; constant expression evaluation macros, by qWord, 2015
-; Version 1.0.1
+; constant expression evaluation macros, by qWord, 2015-2016
+; Version 1.0.2
 ; This file is best viewed with a fixed-width font and a tab size of 4.
 ;
 ;(1) Overview
@@ -189,7 +189,7 @@
 ;
 ;       Macro function that evaluates expression and then interpret the
 ;       result as Boolean value to return a corresponding integer value.
-;       If the expression is not zero, it is interpreted as true and -1 is retuned,
+;       If the expression is not zero, it is interpreted as true and -1 is returned,
 ;       otherwise zero. The result is also stored in MREAL "ans".
 ;       Example:
 ;                      IF ccond( x lt pi && not z || x gt 123.456 || x == z && x /= y )
@@ -269,12 +269,16 @@
 ;                   Initial release
 ;       11.10.2015  Version 1.0.1
 ;                   improvement:  - check for invalid IDs at top of operator stack after RPN evaluation
+;       16.06.2016  Version 1.0.2
+;                   bugfix: - If the first two or three characters of an ID were equal to an operator name
+;                             they were interpreted as that operator. For example, 'negative' were interpreted as
+;                             operator 'ne' and ID 'gative'.
 ;
 
 
 IFNDEF CEVAL_VERSION
 
-	CEVAL_VERSION EQU 101
+	CEVAL_VERSION EQU 102
 	
 	mstck_init macro stack
 		mstack_&stack&_N = 0
@@ -436,6 +440,16 @@ IFNDEF CEVAL_VERSION
 		EXITM <0>
 	endm
 	
+	sya_is_delimiter_at_pos macro pos:req
+		;; if not end of string
+		IF pos LE sya_size
+			syamco_delimiter SUBSTR sya_txt,pos,1
+			syamco_is_delimiter INSTR < 	=+-*/^(),&>,syamco_delimiter
+			EXITM @CatStr(%syamco_is_delimiter NE 0)
+		ENDIF
+		EXITM <-1>
+	endm
+	
 	sya_is_multichar_operator macro
 		
 		syamco_isTwoCharOperatorPossible INSTR </=&|lgeno>,sya_char
@@ -448,6 +462,10 @@ IFNDEF CEVAL_VERSION
 		syamco_operator SUBSTR sya_txt,sya_pos,2
 		syamco_isTwoCharOperator INSTR <==#/=#&&#||#eq#ne#lt#gt#le#ge#or>,syamco_operator
 		IF syamco_isTwoCharOperator
+			;; if non-symbol operators: check for delimiter
+			IF syamco_isTwoCharOperator GE 13 AND NOT sya_is_delimiter_at_pos(sya_pos+2)
+				EXITM <0>
+			ENDIF
 			IFIDN <==>,syamco_operator
 				sya_token TEXTEQU <eq>
 			ELSEIFIDN </=>,syamco_operator
@@ -468,6 +486,9 @@ IFNDEF CEVAL_VERSION
 		syamco_operator SUBSTR sya_txt,sya_pos,3
 		syamco_isThreeCharOperator INSTR <and#not>,syamco_operator
 		IF syamco_isThreeCharOperator
+			IF NOT sya_is_delimiter_at_pos(sya_pos+3)
+				EXITM <0>
+			ENDIF
 			IFIDN <and>,syamco_operator
 				sya_token TEXTEQU <&&>
 			ELSE

@@ -4843,7 +4843,7 @@ MR_FROM_STR macro dest:req,txt:req,rm:=<MREAL_ROUND_MODE>,n:=<MREAL_XDIM>
 	;; *     Number is an integer -> round if needed.
 	;; *
 	;; *   - -emax <= dexp < 0
-	;; *     Devide value by 10^dexp.
+	;; *     Divide value by 10^dexp.
 	;; *   
 	;; *   - emax >= dexp > 0
 	;; *     Multiply value by 10^dexp.
