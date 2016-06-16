@@ -1,0 +1,6 @@
+*
+!.gitignore
+!real_math.inc
+!ceval.inc
+!approximations.inc
+!basic_usage.asm
