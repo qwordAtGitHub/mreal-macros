@@ -1,5 +1,5 @@
 ; MREAL macros, by qWord, 2014
-; Version 1.0.2
+; Version 1.0.3
 ; This file is best viewed with a fixed-width font and a tab size of 4.
 ;
 ; Overview
@@ -298,7 +298,9 @@
 ;              bugfix:       - MR_TO_DECIMAL(): mrtiTmp was used, even if it was invalid.
 ;  26.06.2014  Version 1.0.2
 ;              added:        - MREAL macro.
-;
+;  26.06.2014  Version 1.0.3
+;              improvement:  - test for case-sensitive symbol recognition added (option casemap:none)
+;              bugfix:       - MREAL-macro: did not work correct for integer literals greater than 32 bit (affects only ml64.exe and jWasm).
 ;
 ; Literature
 ;  [1]  J.-M. Muller, N. Brisebarre, F. de Dinechin, C.-P. Jeannerod, V. Lefevre, G. Melquiond, N. Revol, D. Stehle, S. Torres.
@@ -315,12 +317,17 @@
 
 
 
-MR_VERSION EQU 102 ; 1.0.2
+MR_VERSION EQU 103 ; 1.0.3
 
 MREAL_XDIM 		= 4
 MREAL_WMSK 		EQU 0ffffh
 MREAL_MAX_EXP	EQU (16383+1)	; default values are compatible with REAL10
 MREAL_MIN_EXP	EQU (2-16383)	;
+
+;/* symbol recognition must be case-sensitive */
+IFDEF MrEaL_XdIm
+	.err <option casemap:none is needed>
+ENDIF
 
 ;/* rounding modes */
 MRRM_ROUND_TO_NEAREST_TIES_TO_EVEN			EQU 0	;; IEEE 754 default mode; tie-breaking rule: round half to even; also called "round to even" or "banker’s rounding"
@@ -5240,11 +5247,7 @@ MREAL macro expr:VARARG
 		IF mreal_pos1
 			mreal_txt1 SUBSTR mreal_txt,1,mreal_pos1-1
 			mreal_txt2 SUBSTR mreal_txt,mreal_pos1+1
-		%	IF (OPATTR &mreal_txt2) EQ 100100y
-		%		MR_FROM_EXPR32 &mreal_txt1,&mreal_txt2,,&mreal_tn
-			ELSE
-		%		MR_FROM_STR &mreal_txt1,&mreal_txt2,,&mreal_tn
-			ENDIF
+		%	MR_FROM_STR &mreal_txt1,&mreal_txt2,,&mreal_tn
 		ELSE
 			.err <invalid macro usage: expected: dest1 = value1, dest2 = value2, ...>
 		ENDIF
