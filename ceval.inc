@@ -1,5 +1,5 @@
 ; constant expression evaluation macros, by qWord, 2015
-; Version 1.0.0
+; Version 1.0.1
 ; This file is best viewed with a fixed-width font and a tab size of 4.
 ;
 ;(1) Overview
@@ -266,12 +266,15 @@
 ;
 ;(10) Changelog
 ;       25.09.2015  Version 1.0.0
+;                   Initial release
+;       11.10.2015  Version 1.0.1
+;                   improvement:  - check for invalid IDs at top of operator stack after RPN evaluation
 ;
 
 
 IFNDEF CEVAL_VERSION
 
-	CEVAL_VERSION EQU 100
+	CEVAL_VERSION EQU 101
 	
 	mstck_init macro stack
 		mstack_&stack&_N = 0
@@ -817,6 +820,14 @@ IFNDEF CEVAL_VERSION
 		ENDM
 		IF rpne_error EQ RPNE_SUCCESS AND mstck_size(operands) NE 1
 			rpne_error = RPNE_ERROR_TOO_MANY_VALUES
+		ELSEIF rpne_error EQ RPNE_SUCCESS
+			mstck_peek operands,rpne_token,rpne_token_type
+			IF rpne_token_type NE SYATT_ID
+				EXITM
+			ENDIF
+			IF NOT MR_ID_IS_MREAL(<%rpne_token>)
+				rpne_set_error RPNE_ERROR_ID_IS_NOT_MREAL, rpne_token
+			ENDIF
 		ENDIF
 	endm
 	
