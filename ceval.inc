@@ -441,7 +441,7 @@ IFNDEF CEVAL_VERSION
 	endm
 	
 	sya_is_delimiter_at_pos macro pos:req
-		;; if not end of string
+		;; if not past end of string
 		IF pos LE sya_size
 			syamco_delimiter SUBSTR sya_txt,pos,1
 			syamco_is_delimiter INSTR < 	=+-*/^(),&>,syamco_delimiter

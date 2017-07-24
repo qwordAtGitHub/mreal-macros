@@ -441,7 +441,7 @@ MR_SET_CONST ?COR65,+,-65,4,8000h,0h,0h,0h
 ;;/* reciprocal of scale factor K = sqrt(1+2^(-2*0))*sqrt(1+2^(-2*1))*sqrt(1+2^(-2*2))*...*sqrt(1+2^(-2*n)) with n-->infinity */
 MR_SET_CONST ?CORK,+,-1,4,9b74h,0eda8h,435eh,5a68h 
 
-;;/* some constant used by MR_SIN */
+;;/* some constant used by MR_SINCOS */
 MR_SET_CONST ?COR_2RPI,+,-1,8,0a2f9h,836eh,4e44h,1529h,0fc27h,57d1h,0f534h,0ddc1h ;; 2/Pi
 MR_SET_CONST ?COR_PIH,+,0,8,0c90fh,0daa2h,2168h,0c234h,0c4c6h,628bh,80dch,1cd1h ;; Pi/2
 
