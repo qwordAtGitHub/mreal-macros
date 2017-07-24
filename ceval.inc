@@ -378,7 +378,20 @@ IFNDEF CEVAL_VERSION
 		syagem_txt TEXTEQU <say_error_>,%sya_error,<_msg>
 		EXITM syagem_txt
 	endm
-		
+
+    ; sya_ltrim
+    ;
+    ;   Returns first none-blank character from sya_txt, starting at position sya_pos. The Character
+    ;   is returned through text macro sya_char. If sya_char is blank, end of text is reached.
+    ;
+    ; Shared text macros and equates:
+    ;
+    ;   ID        | Type   | Direction | Description
+    ; ------------+--------+-----------+------------------------------------------------------
+    ;   sya_txt   | TXTEQU | in        | Text to trim
+    ;   sya_pos   |   =    | inout     | Position of next character in sya_txt
+    ;   sya_char  | TXTEQU | out       | Read character. If blank then end of text reached.
+    ;
 	sya_ltrim macro
 		sya_char TEXTEQU <>
 		WHILE sya_pos LE sya_size
