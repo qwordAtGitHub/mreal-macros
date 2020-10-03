@@ -515,6 +515,38 @@ IFNDEF CEVAL_VERSION
 		EXITM <0>
 	endm
 	
+    ; sya_get_next_token
+    ;
+    ;   Reads next token from sya_txt and return it through text macro sya_token. The equate
+    ;   sya_token_type contains one of the SYATT_*-Constants to describe the token.
+    ;   If a known constant is referenced in text, the token is replaced by ID of corresponding
+    ;   MREAL-value.
+    ;
+    ;   This macro is intended to be called repeatedly for the same text until returned token type
+    ;   is SYATT_END or SYATT_INVALID. The macro expects to have full control over sya_txt, sya_pos
+    ;   and sya_token_type, except their initial values.
+    ;
+    ;   Operators are: '+','-',unary '-','*','/','^','(',')','not','and','or','||','&&',
+    ;   '=','==','/=','eq','ne','lt','gt','le','ge','comma','~'. The tilde '~' is produced by
+    ;   unary minus operators in text and is not intented to be used in text directly.
+    ;   Operators are seperated by spaces, tabs and any none-alphabetic operators.
+    ;
+    ;
+    ;   IDs of MREAL-variables begin with "_$?AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz" and
+    ;   further characters can contain also digits 0-9. If a ID is precedded by a single ampersant '&', the
+    ;   token is expanded using MASM's expansion operator '%' and it is expeceted that the result is an numeric
+    ;   value.
+    ;
+    ; Shared text macros and equates:
+    ;   ID             | Type   | Direction | Description
+    ; -----------------+--------+-----------+---------------------------------------------------------------
+    ;   sya_txt        | TXTEQU | in        | Text to parse (const).
+    ;   sya_pos        |   =    | inout     | Position of next character in sya_txt.
+    ;                  |        |           | Initial value should be 1.
+    ;   sya_token      | TXTEQU | out       | Current token read by this procedure.
+    ;   sya_token_type |   =    | inout     | Type of current token specified through SYATT_* constant.
+    ;                  |        |           | Initial value should be SYATT_INVALID.
+    ;
 	sya_get_next_token macro
 		
 		sya_previous_token_type = sya_token_type
